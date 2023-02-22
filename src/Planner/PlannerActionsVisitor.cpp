@@ -421,6 +421,14 @@ PlannerActionsVisitorImpl::NodeNameAndNodeMinLevel PlannerActionsVisitorImpl::vi
 
     auto function_node_name = calculateActionNodeName(node, *planner_context, node_to_node_name);
 
+    /// If we have already visited this function, we don't need to visit it again or its arguments.
+    /// For example it can come from aggregation step:
+    ///    SELECT foo(a, b, c) as x FROM table GROUP BY foo(a, b, c)
+    /// In this case we should not analyze `a`, `b`, `c` again,
+    /// moreover it can lead to error if we have arrayJoin in the arguments, because it will be calculated twice.
+    if (!actions_stack.empty() && actions_stack.front().containsNode(function_node_name))
+        return {function_node_name, 0};
+
     if (function_node.isAggregateFunction() || function_node.isWindowFunction())
     {
         size_t actions_stack_size = actions_stack.size();
